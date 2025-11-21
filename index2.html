@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Thống kê doanh thu</title>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    /* ===== style.css (gộp) ===== */
+    :root{
+      --bg: #0e0e0e;
+      --panel: #121212;
+      --muted: #EAEAEA;
+      --gold: #F5C95B;
+      --th: #333333;
+      --td-border: #555;
+    }
+
+    html,body{height:100%; margin:0; padding:0; font-family: Arial, sans-serif; background:var(--bg); color:var(--muted); box-sizing:border-box;}
+    .container{max-width:1200px; margin:24px auto; padding:20px;}
+    .title{font-size:32px; margin:0 0 20px 0; color:var(--gold); font-weight:800; letter-spacing:1px;}
+    .filter-box{display:flex; gap:12px; margin-bottom:18px; align-items:center; flex-wrap:wrap;}
+    .select-box, .btn{padding:10px 14px; font-size:15px; border-radius:8px; border:1px solid rgba(255,255,255,0.06); background:transparent; color:var(--muted);}
+    .select-box{min-width:110px;}
+    .btn{background:var(--gold); color:#111; border:none; cursor:pointer; font-weight:700;}
+    .table-wrapper{margin-top:6px; overflow:auto; border-radius:8px;}
+    table{width:100%; border-collapse:collapse; margin-bottom:18px;}
+    th{background:var(--th); padding:12px 14px; text-align:left; font-weight:700; color:var(--muted);}
+    td{padding:12px 14px; border-bottom:1px solid var(--td-border); color:var(--muted); vertical-align:middle;}
+    .empty{color:#999; padding:16px;}
+    .chart-container{width:100%; height:380px; background:transparent; border-radius:8px; padding:12px 0 0 0;}
+    /* responsive small */
+    @media (max-width:700px){
+      .filter-box{flex-direction:column; align-items:stretch;}
+      .select-box{width:100%;}
+      .btn{width:100%;}
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1 class="title">THỐNG KÊ DOANH THU</h1>
+
+    <div class="filter-box">
+      <select id="date" class="select-box">
+        <option value="">Ngày:</option>
+      </select>
+
+      <select id="month" class="select-box">
+        <option value="">Tháng:</option>
+      </select>
+
+      <select id="year" class="select-box">
+        <option value="">Năm:</option>
+      </select>
+
+      <button id="btnThongKe" class="btn">Xem thống kê</button>
+    </div>
+
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Ngày</th>
+            <th>Doanh thu</th>
+            <th>Đơn hàng</th>
+            <th>Sản phẩm bán ra</th>
+          </tr>
+        </thead>
+        <tbody id="data-body"></tbody>
+      </table>
+    </div>
+
+    <div class="chart-container">
+      <canvas id="statChart" style="width:100%; height:100%; display:block;"></canvas>
+    </div>
+  </div>
+
+  <script>
+    /* ===== script.js (gộp) ===== */
+
+    // sample data
+    const sampleData = [
+      { date: "01-04-2025", revenue: 250000, orders: 10, sold: 5 },
+      { date: "02-04-2025", revenue: 230000, orders: 11, sold: 6 },
+      { date: "03-04-2025", revenue: 250000, orders: 12, sold: 7 },
+      { date: "04-04-2025", revenue: 280000, orders: 15, sold: 8 },
+      { date: "05-04-2025", revenue: 300000, orders: 18, sold: 9 },
+      { date: "15-03-2025", revenue: 150000, orders: 6,  sold: 3 },
+      { date: "05-04-2024", revenue: 120000, orders: 5,  sold: 4 }
+    ];
+
+    // DOM refs
+    const selDay = document.getElementById('date');
+    const selMonth = document.getElementById('month');
+    const selYear = document.getElementById('year');
+    const btn = document.getElementById('btnThongKe');
+    const tbody = document.getElementById('data-body');
+    const canvas = document.getElementById('statChart');
+
+    // normalize first placeholder values
+    if (selDay && selDay.options && selDay.options[0]) selDay.options[0].value = "";
+    if (selMonth && selMonth.options && selMonth.options[0]) selMonth.options[0].value = "";
+    if (selYear && selYear.options && selYear.options[0]) selYear.options[0].value = "";
+
+    // flags to avoid duplicate filling
+    let daysFilled = false;
+    let monthsFilled = false;
+    let yearsFilled = false;
+
+    // helpers
+    const pad2 = n => String(n).padStart(2, '0');
+    const parseDMY = (s) => {
+      const p = s.split('-');
+      return { d: p[0], m: p[1], y: p[2] };
+    };
+    const formatCurrency = v => {
+      // ensure number
+      const n = Number(v) || 0;
+      return n.toLocaleString('vi-VN');
+    };
+
+    // populate functions
+    function populateDays() {
+      if (daysFilled) return;
+      for (let d = 1; d <= 31; d++) {
+        const o = document.createElement('option');
+        o.value = pad2(d);
+        o.textContent = d;
+        selDay.appendChild(o);
+      }
+      daysFilled = true;
+    }
+
+    function populateMonths() {
+      if (monthsFilled) return;
+      for (let m = 1; m <= 12; m++) {
+        const o = document.createElement('option');
+        o.value = pad2(m);
+        o.textContent = m;
+        selMonth.appendChild(o);
+      }
+      monthsFilled = true;
+    }
+
+    function populateYears() {
+      if (yearsFilled) return;
+      const years = Array.from(new Set(sampleData.map(r => parseInt(parseDMY(r.date).y, 10)))).sort((a,b)=>a-b);
+      const minY = Math.min(...years);
+      const maxY = Math.max(...years);
+      for (let y = minY - 1; y <= maxY + 1; y++) {
+        const o = document.createElement('option');
+        o.value = String(y);
+        o.textContent = y;
+        selYear.appendChild(o);
+      }
+      yearsFilled = true;
+    }
+
+    // attach to focus/click so options appear when user interacts
+    selDay.addEventListener('focus', populateDays);
+    selDay.addEventListener('click', populateDays);
+    selMonth.addEventListener('focus', populateMonths);
+    selMonth.addEventListener('click', populateMonths);
+    selYear.addEventListener('focus', populateYears);
+    selYear.addEventListener('click', populateYears);
+
+    // render table
+    function renderTable(data) {
+      tbody.innerHTML = '';
+      if (!data || data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="empty">Không có dữ liệu</td></tr>';
+        return;
+      }
+      const frag = document.createDocumentFragment();
+      data.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${r.date}</td>
+          <td>${formatCurrency(r.revenue)} ₫</td>
+          <td>${r.orders}</td>
+          <td>${r.sold}</td>
+        `;
+        frag.appendChild(tr);
+      });
+      tbody.appendChild(frag);
+    }
+
+    // filter logic
+    function filterBySelections() {
+      const day = selDay.value || '';
+      const month = selMonth.value || '';
+      const year = selYear.value || '';
+
+      return sampleData.filter(row => {
+        const p = parseDMY(row.date);
+        if (day && p.d !== day) return false;
+        if (month && p.m !== month) return false;
+        if (year && p.y !== year) return false;
+        return true;
+      });
+    }
+
+    // Chart.js drawing
+    let chartInstance = null;
+    function drawChart(data) {
+      if (!canvas) return;
+      const labels = data.map(r => r.date);
+      const revenues = data.map(r => r.revenue);
+      const orders = data.map(r => r.orders);
+
+      // create combined chart: bar (revenue) + line (orders)
+      if (chartInstance) {
+        chartInstance.data.labels = labels;
+        chartInstance.data.datasets[0].data = revenues;
+        chartInstance.data.datasets[1].data = orders;
+        chartInstance.update();
+        return;
+      }
+
+      chartInstance = new Chart(canvas.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              type: 'bar',
+              label: 'Doanh thu',
+              data: revenues,
+              backgroundColor: 'rgba(245,201,91,0.95)',
+              borderRadius: 6,
+              yAxisID: 'y'
+            },
+            {
+              type: 'line',
+              label: 'Đơn hàng',
+              data: orders,
+              borderColor: 'rgba(234,234,234,0.95)',
+              backgroundColor: 'rgba(0,0,0,0)',
+              tension: 0.3,
+              pointRadius: 3,
+              borderWidth: 2,
+              yAxisID: 'y2'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#ddd' } },
+            tooltip: { mode: 'index', intersect: false }
+          },
+          scales: {
+            x: {
+              ticks: { color: '#ddd' },
+              grid: { color: 'rgba(255,255,255,0.03)' }
+            },
+            y: {
+              position: 'left',
+              ticks: {
+                color: '#ddd',
+                callback: function(value) { return value.toLocaleString('vi-VN'); }
+              },
+              grid: { color: 'rgba(255,255,255,0.03)' }
+            },
+            y2: {
+              position: 'right',
+              grid: { display: false },
+              ticks: { color: '#ddd' }
+            }
+          }
+        }
+      });
+    }
+
+    // initial load
+    populateYears(); // prefill years
+    renderTable(sampleData);
+    drawChart(sampleData);
+
+    // button action
+    btn.addEventListener('click', () => {
+      const filtered = filterBySelections();
+      renderTable(filtered);
+      drawChart(filtered.length ? filtered : sampleData);
+    });
+  </script>
+</body>
+</html>
