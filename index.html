@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Thống kê doanh thu</title>
+    <link rel="stylesheet" href="style.css" />
+
+  
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    <h1 class="title">THỐNG KÊ DOANH THU</h1>
+
+    <div class="filter-box">
+        <select id="date" class="select-box">
+            <option>Ngày:</option>
+        </select>
+
+        <select id="month" class="select-box">
+            <option>Tháng:</option>
+        </select>
+
+        <select id="year" class="select-box">
+            <option>Năm:</option>
+        </select>
+
+        <button id="btnThongKe" class="btn">Xem thống kê</button>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Ngày</th>
+                    <th>Doanh thu</th>
+                    <th>Đơn hàng</th>
+                    <th>Sản phẩm bán ra</th>
+                </tr>
+            </thead>
+            <tbody id="data-body"></tbody>
+        </table>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="statChart"></canvas>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
